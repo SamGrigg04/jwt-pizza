@@ -222,6 +222,14 @@ export async function basicInit(page: Page) {
   await page.goto('/');
 }
 
+export async function register(page: Page, name: string, email: string, password: string) {
+  await page.getByRole('link', { name: 'Register', exact: true }).click();
+  await page.getByPlaceholder('Full name').fill(name);
+  await page.getByPlaceholder('Email address').fill(email);
+  await page.getByPlaceholder('Password').fill(password);
+  await page.getByRole('button', { name: 'Register' }).click();
+}
+
 export async function login(page: Page, email: string, password: string) {
   await page.getByRole('link', { name: 'Login', exact: true }).click();
   await page.getByPlaceholder('Email address').fill(email);
