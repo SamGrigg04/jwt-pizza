@@ -99,6 +99,24 @@ export async function basicInit(page: Page) {
     await route.fulfill({ json: loggedInUser });
   });
 
+  // Update a user (PUT /api/user/:userId)
+  await page.route(/\/api\/user\/\d+$/, async (route) => {
+    expect(route.request().method()).toBe('PUT');
+    const id = new URL(route.request().url()).pathname.split('/').pop()!;
+    const user = Object.values(validUsers).find((u) => u.id === id);
+    expect(user, `user ${id} should exist`).toBeDefined();
+
+    // Users are keyed by email, so re-key the user in case the email changes
+    const req = route.request().postDataJSON();
+    delete validUsers[user!.email!];
+    user!.name = req.name || user!.name;
+    user!.email = req.email || user!.email;
+    user!.password = req.password || user!.password;
+    validUsers[user!.email!] = user!;
+
+    await route.fulfill({ json: { user, token: 'abcdef' } });
+  });
+
   await page.route('*/**/api/order/menu', async (route) => {
     const menuRes = [
       { id: 1, title: 'Veggie', image: 'pizza1.png', price: 0.0038, description: 'A garden of delight' },

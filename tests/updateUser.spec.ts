@@ -1,8 +1,9 @@
-import { test, expect } from 'playwright-test-coverage';
+import { test, expect } from './testSetup';
+import { basicInit } from './mockService';
 
 test('updateUser', async ({ page }) => {
   const email = `user${Math.floor(Math.random() * 10000)}@jwt.com`;
-  await page.goto('/');
+  await basicInit(page);
   await page.getByRole('link', { name: 'Register' }).click();
   await page.getByRole('textbox', { name: 'Full name' }).fill('pizza diner');
   await page.getByRole('textbox', { name: 'Email address' }).fill(email);
