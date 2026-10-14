@@ -13,19 +13,21 @@ test('admin dashboard lists franchises with paging', async ({ page }) => {
   await openAdminDashboard(page);
 
   await expect(page.getByRole('navigation', { name: 'Global' }).getByRole('link', { name: 'Franchise' })).toHaveCount(0);
-  await expect(page.getByRole('row', { name: 'LotaPizza' })).toContainText('Fran Chise');
-  await expect(page.getByRole('row', { name: 'Spanish Fork' })).toContainText('3 ₿');
-  await expect(page.getByRole('row', { name: 'topSpot' })).toBeVisible();
-  await expect(page.getByRole('row', { name: 'SliceCity' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '«' })).toBeDisabled();
 
-  await page.getByRole('button', { name: '»' }).click();
-  await expect(page.getByRole('row', { name: 'SliceCity' })).toBeVisible();
-  await expect(page.getByRole('row', { name: 'LotaPizza' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '»' })).toBeDisabled();
+  const franchises = page.getByRole('table', { name: 'Franchises' });
+  await expect(franchises.getByRole('row', { name: 'LotaPizza' })).toContainText('Fran Chise');
+  await expect(franchises.getByRole('row', { name: 'Spanish Fork' })).toContainText('3 ₿');
+  await expect(franchises.getByRole('row', { name: 'topSpot' })).toBeVisible();
+  await expect(franchises.getByRole('row', { name: 'SliceCity' })).toHaveCount(0);
+  await expect(franchises.getByRole('button', { name: '«' })).toBeDisabled();
 
-  await page.getByRole('button', { name: '«' }).click();
-  await expect(page.getByRole('row', { name: 'LotaPizza' })).toBeVisible();
+  await franchises.getByRole('button', { name: '»' }).click();
+  await expect(franchises.getByRole('row', { name: 'SliceCity' })).toBeVisible();
+  await expect(franchises.getByRole('row', { name: 'LotaPizza' })).toHaveCount(0);
+  await expect(franchises.getByRole('button', { name: '»' })).toBeDisabled();
+
+  await franchises.getByRole('button', { name: '«' }).click();
+  await expect(franchises.getByRole('row', { name: 'LotaPizza' })).toBeVisible();
 });
 
 test('admin creates and filters for a franchise', async ({ page }) => {
@@ -38,10 +40,11 @@ test('admin creates and filters for a franchise', async ({ page }) => {
   await page.getByRole('button', { name: 'Create', exact: true }).click();
 
   await expect(page).toHaveURL(/\/admin-dashboard$/);
-  await page.getByPlaceholder('Filter franchises').fill('palace');
-  await page.getByRole('button', { name: 'Submit' }).click();
-  await expect(page.getByRole('row', { name: 'Pizza Palace' })).toContainText('Fran Chise');
-  await expect(page.getByRole('row', { name: 'LotaPizza' })).toHaveCount(0);
+  const franchises = page.getByRole('table', { name: 'Franchises' });
+  await franchises.getByPlaceholder('Filter franchises').fill('palace');
+  await franchises.getByRole('button', { name: 'Submit' }).click();
+  await expect(franchises.getByRole('row', { name: 'Pizza Palace' })).toContainText('Fran Chise');
+  await expect(franchises.getByRole('row', { name: 'LotaPizza' })).toHaveCount(0);
 });
 
 test('admin closes a franchise', async ({ page }) => {
@@ -67,6 +70,78 @@ test('admin closes a store', async ({ page }) => {
   await expect(page).toHaveURL(/\/admin-dashboard$/);
   await expect(page.getByRole('row', { name: 'Springville' })).toBeVisible();
   await expect(page.getByRole('row', { name: 'Lehi' })).toHaveCount(0);
+});
+
+test('admin dashboard lists users', async ({ page }) => {
+  await openAdminDashboard(page);
+
+  const users = page.getByRole('table', { name: 'Users' });
+  await expect(users.getByRole('row', { name: 'Kai Chen' })).toContainText('d@jwt.com');
+  await expect(users.getByRole('row', { name: 'Kai Chen' })).toContainText('diner');
+  await expect(users.getByRole('row', { name: 'Fran Chise' })).toContainText('franchisee');
+  await expect(users.getByRole('row', { name: 'Mama Ricci' })).toContainText('admin');
+});
+
+test('admin pages through users', async ({ page }) => {
+  await openAdminDashboard(page);
+
+  const users = page.getByRole('table', { name: 'Users' });
+  await expect(users.getByRole('row', { name: 'Kai Chen' })).toBeVisible();
+  await expect(users.getByRole('button', { name: '«' })).toBeDisabled();
+
+  await users.getByRole('button', { name: '»' }).click();
+  await expect(users.getByRole('row', { name: 'Filler 10' })).toBeVisible();
+  await expect(users.getByRole('row', { name: 'Kai Chen' })).toHaveCount(0);
+  await expect(users.getByRole('button', { name: '»' })).toBeDisabled();
+
+  await users.getByRole('button', { name: '«' }).click();
+  await expect(users.getByRole('row', { name: 'Kai Chen' })).toBeVisible();
+});
+
+test('admin filters users by name', async ({ page }) => {
+  await openAdminDashboard(page);
+
+  // start on the second page to make sure filtering starts over from the first page of matches
+  const users = page.getByRole('table', { name: 'Users' });
+  await users.getByRole('button', { name: '»' }).click();
+  await expect(users.getByRole('row', { name: 'Filler 10' })).toBeVisible();
+
+  await users.getByPlaceholder('Filter users').fill('kai');
+  await users.getByRole('button', { name: 'Submit' }).click();
+  await expect(users.getByRole('row', { name: 'Kai Chen' })).toBeVisible();
+  await expect(users.getByRole('row', { name: 'Filler 10' })).toHaveCount(0);
+  await expect(users.getByRole('button', { name: '«' })).toBeDisabled();
+});
+
+test('admin deletes a user', async ({ page }) => {
+  await openAdminDashboard(page);
+
+  const users = page.getByRole('table', { name: 'Users' });
+  await users.getByRole('row', { name: 'Kai Chen' }).getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByRole('heading', { name: 'Sorry to see you go' })).toBeVisible();
+  await expect(page.getByRole('main')).toContainText('Are you sure you want to delete Kai Chen');
+  await page.getByRole('button', { name: 'Delete' }).click();
+
+  await expect(page).toHaveURL(/\/admin-dashboard$/);
+  await expect(users.getByRole('row', { name: 'Fran Chise' })).toBeVisible();
+  await expect(users.getByRole('row', { name: 'Kai Chen' })).toHaveCount(0);
+
+  // and they're really gone, not just hidden from the table
+  await page.getByRole('link', { name: 'Logout' }).click();
+  await login(page, 'd@jwt.com', 'a');
+  await expect(page.getByText('unknown user')).toBeVisible();
+});
+
+test('admin changes their mind about deleting a user', async ({ page }) => {
+  await openAdminDashboard(page);
+
+  const users = page.getByRole('table', { name: 'Users' });
+  await users.getByRole('row', { name: 'Kai Chen' }).getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByRole('heading', { name: 'Sorry to see you go' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
+  await expect(page).toHaveURL(/\/admin-dashboard$/);
+  await expect(users.getByRole('row', { name: 'Kai Chen' })).toBeVisible();
 });
 
 test('diners cannot see the admin dashboard', async ({ page }) => {

@@ -4,6 +4,17 @@ import { Franchise, Order, Role, User } from '../src/service/pizzaService';
 
 const validJwt = 'eyJpYXQ';
 
+// Pages and name-filters a list the way the real service does (0-based page, * as a wildcard)
+function listPage<T extends { name?: string }>(url: string, items: T[]): [T[], boolean] {
+  const params = new URL(url).searchParams;
+  const pageNumber = Number(params.get('page') ?? 0);
+  const limit = Number(params.get('limit') ?? 10);
+  const namePattern = (params.get('name') ?? '*').replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  const matching = items.filter((item) => new RegExp(`^${namePattern}$`, 'i').test(item.name ?? ''));
+  const start = pageNumber * limit;
+  return [matching.slice(start, start + limit), matching.length > start + limit];
+}
+
 // Stateful mock of the JWT Pizza Service so each test runs against a fresh, predictable backend.
 export async function basicInit(page: Page) {
   let loggedInUser: User | undefined;
@@ -20,6 +31,12 @@ export async function basicInit(page: Page) {
     },
     'a@jwt.com': { id: '1', name: 'Mama Ricci', email: 'a@jwt.com', password: 'admin', roles: [{ role: Role.Admin }] },
   };
+
+  // Extra diners so the admin user list has more than one page (zero padded so 'Filler 1' doesn't also match 'Filler 10')
+  for (let i = 1; i <= 10; i++) {
+    const n = String(i).padStart(2, '0');
+    validUsers[`filler${n}@jwt.com`] = { id: String(10 + i), name: `Filler ${n}`, email: `filler${n}@jwt.com`, password: 'filler', roles: [{ role: Role.Diner }] };
+  }
 
   const franchises: Franchise[] = [
     {
@@ -99,12 +116,20 @@ export async function basicInit(page: Page) {
     await route.fulfill({ json: loggedInUser });
   });
 
-  // Update a user (PUT /api/user/:userId)
+  // Update a user (PUT /api/user/:userId) and delete a user (DELETE /api/user/:userId)
   await page.route(/\/api\/user\/\d+$/, async (route) => {
-    expect(route.request().method()).toBe('PUT');
+    const method = route.request().method();
     const id = new URL(route.request().url()).pathname.split('/').pop()!;
     const user = Object.values(validUsers).find((u) => u.id === id);
     expect(user, `user ${id} should exist`).toBeDefined();
+
+    if (method === 'DELETE') {
+      delete validUsers[user!.email!];
+      await route.fulfill({ json: { message: 'user deleted' } });
+      return;
+    }
+
+    expect(method).toBe('PUT');
 
     // Users are keyed by email, so re-key the user in case the email changes
     const req = route.request().postDataJSON();
@@ -115,6 +140,14 @@ export async function basicInit(page: Page) {
     validUsers[user!.email!] = user!;
 
     await route.fulfill({ json: { user, token: 'abcdef' } });
+  });
+
+  // List users (GET /api/user), without passwords just like the real service
+  await page.route(/\/api\/user(\?.*)?$/, async (route) => {
+    expect(route.request().method()).toBe('GET');
+    const allUsers = Object.values(validUsers).map((u) => ({ id: u.id, name: u.name, email: u.email, roles: u.roles }));
+    const [users, more] = listPage(route.request().url(), allUsers);
+    await route.fulfill({ json: { users, more } });
   });
 
   await page.route('*/**/api/order/menu', async (route) => {
@@ -169,13 +202,8 @@ export async function basicInit(page: Page) {
     }
 
     expect(method).toBe('GET');
-    const params = new URL(route.request().url()).searchParams;
-    const pageNumber = Number(params.get('page') ?? 0);
-    const limit = Number(params.get('limit') ?? 10);
-    const namePattern = (params.get('name') ?? '*').replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-    const matching = franchises.filter((f) => new RegExp(`^${namePattern}$`, 'i').test(f.name));
-    const start = pageNumber * limit;
-    await route.fulfill({ json: { franchises: matching.slice(start, start + limit), more: matching.length > start + limit } });
+    const [results, more] = listPage(route.request().url(), franchises);
+    await route.fulfill({ json: { franchises: results, more } });
   });
 
   // Franchises for a user (GET /api/franchise/:userId) and close a franchise (DELETE /api/franchise/:franchiseId)
