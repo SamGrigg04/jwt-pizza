@@ -57,7 +57,23 @@ jobs:
           aws-region: us-east-1
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT }}:role/${{ secrets.CI_IAM_ROLE }}
 
+      - name: Check S3 write access
+        id: s3_access
+        run: |
+          set +e
+          aws s3api put-object --bucket "${{ secrets.APP_BUCKET }}" --key ".deploy-permission-check" --body /dev/null
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            aws s3api delete-object --bucket "${{ secrets.APP_BUCKET }}" --key ".deploy-permission-check"
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Skipping deploy because the AWS role cannot write to s3://${{ secrets.APP_BUCKET }}"
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Push to AWS S3
+        if: steps.s3_access.outputs.can_deploy == 'true'
         run: |
           mkdir dist
           printf "<h1>CloudFront deployment with GitHub Actions</h1>" > dist/index.html
